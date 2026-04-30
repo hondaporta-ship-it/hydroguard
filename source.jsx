@@ -159,6 +159,14 @@ const HydroGuard = () => {
   const [policeModal, setPoliceModal] = useState(false);
   const [fireModal, setFireModal]     = useState(false);
 
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth <= 768);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
+
   useEffect(() => {
     lsSet(dayKey, { water: waterCount, salt: saltCount, breakMin, logs });
   }, [waterCount, saltCount, breakMin, logs, dayKey]);
@@ -220,6 +228,27 @@ const HydroGuard = () => {
   const addWater = () => { setWaterCount((c) => c + 1); addLog({ time: tt(new Date()), type: 'water', amount: 200 }); };
   const addSalt  = () => { setSaltCount((c) => c + 1);  addLog({ time: tt(new Date()), type: 'salt',  amount: 1   }); };
   const addBreak = () => { setBreakMin((b) => b + 15);  addLog({ time: tt(new Date()), type: 'break', amount: 15  }); };
+
+  // 各カテゴリで最後の1回を取り消す
+  const undoWater = () => {
+    const idx = logs.findIndex((l) => l.type === 'water');
+    if (idx === -1) return;
+    setWaterCount((c) => Math.max(0, c - 1));
+    setLogs((l) => l.filter((_, i) => i !== idx));
+  };
+  const undoSalt = () => {
+    const idx = logs.findIndex((l) => l.type === 'salt');
+    if (idx === -1) return;
+    setSaltCount((c) => Math.max(0, c - 1));
+    setLogs((l) => l.filter((_, i) => i !== idx));
+  };
+  const undoBreak = () => {
+    const idx = logs.findIndex((l) => l.type === 'break');
+    if (idx === -1) return;
+    const last = logs[idx];
+    setBreakMin((b) => Math.max(0, b - last.amount));
+    setLogs((l) => l.filter((_, i) => i !== idx));
+  };
 
   const undo = () => {
     if (logs.length === 0) return;
@@ -337,41 +366,54 @@ const HydroGuard = () => {
         }}>
 
           <div>
-            <div style={{
-              fontSize: 10, letterSpacing: '0.25em', color: COLOR.textMute,
-              marginBottom: 12, textTransform: 'uppercase', fontFamily: fontMono,
-            }}>
-              ▸ あなたの画面
-            </div>
+            {!isMobile && (
+              <div style={{
+                fontSize: 10, letterSpacing: '0.25em', color: COLOR.textMute,
+                marginBottom: 12, textTransform: 'uppercase', fontFamily: fontMono,
+              }}>
+                ▸ あなたの画面
+              </div>
+            )}
 
-            <div style={{
+            <div style={isMobile ? {
+              // モバイル：枠なし、自然なフロー
+              background: COLOR.bg,
+            } : {
+              // PC/タブレット：iPhoneプレビュー枠
               width: 300, height: 720, background: COLOR.text, borderRadius: 44,
               padding: 12, position: 'relative', margin: '0 auto',
               boxShadow: '0 30px 80px rgba(31,58,82,0.25)',
             }}>
-              <div style={{
-                position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)',
-                width: 128, height: 24, background: COLOR.text, borderRadius: 16,
-                zIndex: 10,
-              }} />
+              {!isMobile && (
+                <div style={{
+                  position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)',
+                  width: 128, height: 24, background: COLOR.text, borderRadius: 16,
+                  zIndex: 10,
+                }} />
+              )}
 
-              <div style={{
+              <div style={isMobile ? {
+                width: '100%',
+                display: 'flex', flexDirection: 'column', background: COLOR.bg,
+              } : {
                 width: '100%', height: '100%', borderRadius: 36, overflow: 'hidden',
                 display: 'flex', flexDirection: 'column', background: COLOR.bg,
               }}>
 
-                <div style={{
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                  padding: '16px 24px 8px', fontSize: 11, fontWeight: 600,
-                  fontFamily: fontMono, color: COLOR.text,
-                }}>
-                  <span>{tt(now)}</span>
-                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                    <Signal style={{ width: 12, height: 12 }} />
-                    <Wifi style={{ width: 12, height: 12 }} />
+                {!isMobile && (
+                  <div style={{
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    padding: '16px 24px 8px', fontSize: 11, fontWeight: 600,
+                    fontFamily: fontMono, color: COLOR.text,
+                  }}>
+                    <span>{tt(now)}</span>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <Signal style={{ width: 12, height: 12 }} />
+                      <Wifi style={{ width: 12, height: 12 }} />
                     <Battery style={{ width: 16, height: 16 }} />
                   </div>
                 </div>
+                )}
 
                 <div style={{ padding: '8px 20px 12px' }}>
                   <div style={{
@@ -439,47 +481,59 @@ const HydroGuard = () => {
                   gridTemplateColumns: '1fr 1fr 1fr', gap: 8,
                 }}>
                   {[
-                    { icon: Droplet, label: '水分', amt: '+200ml', total: `${totalWaterMl}ml`, color: COLOR.water, onClick: addWater },
-                    { icon: Zap,     label: '塩分', amt: '+1錠',   total: `${saltCount}錠`,    color: COLOR.salt,  onClick: addSalt },
-                    { icon: Coffee,  label: '休憩', amt: '+15分',  total: `${breakMin}分`,     color: COLOR.break, onClick: addBreak },
+                    { icon: Droplet, label: '水分', amt: '+200ml', total: `${totalWaterMl}ml`, count: waterCount, color: COLOR.water, onClick: addWater, onUndo: undoWater },
+                    { icon: Zap,     label: '塩分', amt: '+1錠',   total: `${saltCount}錠`,    count: saltCount,  color: COLOR.salt,  onClick: addSalt,  onUndo: undoSalt },
+                    { icon: Coffee,  label: '休憩', amt: '+15分',  total: `${breakMin}分`,     count: breakMin,   color: COLOR.break, onClick: addBreak, onUndo: undoBreak },
                   ].map((b, i) => (
-                    <button key={i} onClick={b.onClick} style={{
-                      borderRadius: 16, padding: 12, textAlign: 'left', cursor: 'pointer',
-                      background: `${b.color}10`, border: `1px solid ${b.color}40`,
-                      transition: 'all 0.15s',
-                    }}>
-                      <b.icon style={{ width: 20, height: 20, marginBottom: 4, color: b.color }} />
-                      <div style={{ fontSize: 10, color: COLOR.textSub }}>{b.label}</div>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: b.color }}>{b.amt}</div>
-                      <div style={{ fontSize: 9, color: COLOR.textMute, marginTop: 2, fontFamily: fontMono }}>
-                        {b.total}
-                      </div>
-                    </button>
+                    <div key={i} style={{ position: 'relative' }}>
+                      <button onClick={b.onClick} style={{
+                        width: '100%',
+                        borderRadius: 16, padding: 12, textAlign: 'left', cursor: 'pointer',
+                        background: `${b.color}10`, border: `1px solid ${b.color}40`,
+                        transition: 'all 0.15s',
+                      }}>
+                        <b.icon style={{ width: 20, height: 20, marginBottom: 4, color: b.color }} />
+                        <div style={{ fontSize: 10, color: COLOR.textSub }}>{b.label}</div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: b.color }}>{b.amt}</div>
+                        <div style={{ fontSize: 9, color: COLOR.textMute, marginTop: 2, fontFamily: fontMono }}>
+                          {b.total}
+                        </div>
+                      </button>
+                      {/* 個別取消マイクロボタン */}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); b.onUndo(); }}
+                        disabled={b.count === 0}
+                        aria-label={`${b.label}を1つ戻す`}
+                        style={{
+                          position: 'absolute', top: 6, right: 6,
+                          width: 22, height: 22, borderRadius: 11,
+                          background: b.count === 0 ? 'transparent' : COLOR.bgCard,
+                          border: `1px solid ${b.count === 0 ? COLOR.border : `${b.color}55`}`,
+                          color: b.count === 0 ? COLOR.textMute : b.color,
+                          fontSize: 12, fontWeight: 700, lineHeight: 1,
+                          cursor: b.count === 0 ? 'not-allowed' : 'pointer',
+                          opacity: b.count === 0 ? 0.4 : 1,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          padding: 0,
+                        }}
+                      >↶</button>
+                    </div>
                   ))}
                 </div>
 
-                <div style={{
-                  padding: '8px 20px 0', display: 'flex', gap: 8, fontSize: 11,
-                }}>
-                  <button onClick={undo} disabled={logs.length === 0} style={{
-                    flex: 1, padding: '8px', borderRadius: 10,
-                    background: 'transparent', border: `1px solid ${COLOR.border}`,
-                    color: logs.length === 0 ? COLOR.textMute : COLOR.textSub,
-                    cursor: logs.length === 0 ? 'not-allowed' : 'pointer',
-                    fontWeight: 600,
+                {isCaptain && (
+                  <div style={{
+                    padding: '8px 20px 0', display: 'flex', justifyContent: 'flex-end', fontSize: 11,
                   }}>
-                    ↶ 直前を取消
-                  </button>
-                  {isCaptain && (
                     <button onClick={resetAll} style={{
-                      padding: '8px 12px', borderRadius: 10,
+                      padding: '6px 12px', borderRadius: 10,
                       background: 'transparent', border: `1px solid ${COLOR.danger}40`,
-                      color: COLOR.danger, cursor: 'pointer', fontWeight: 600,
+                      color: COLOR.danger, cursor: 'pointer', fontWeight: 600, fontSize: 11,
                     }}>
-                      リセット
+                      リセット（隊長のみ）
                     </button>
-                  )}
-                </div>
+                  </div>
+                )}
 
                 <div style={{ padding: '12px 20px 0', flex: 1, overflow: 'hidden' }}>
                   <div style={{
