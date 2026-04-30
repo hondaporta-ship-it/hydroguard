@@ -4,8 +4,8 @@
   "description": "ATS 屋外警備 熱中症予防アプリ",
   "start_url": "./",
   "display": "standalone",
-  "background_color": "#0B0F19",
-  "theme_color": "#0B0F19",
+  "background_color": "#F5F2EA",
+  "theme_color": "#F5F2EA",
   "orientation": "portrait",
   "icons": [
     { "src": "./icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
